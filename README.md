@@ -12,7 +12,7 @@ This is just an experiment, so please don't expect it to be super useful or bugf
 ```
 this will produce an executable ```bl```, you can copy it somewhere in your path. 
 
-## generate ninja file for executable
+## generate ninja file for an executable
 
 ```
 bl gen-exe <Pkg> > build.ninja
@@ -28,14 +28,14 @@ ninja
 ./out/lake
 ```
 
-## generate ninja file for static library
+## generate ninja file for a static library
 
 ```
 bl gen-lib <Pkg> > build.ninja
 ninja # results in out/Pkg.a
 ```
 
-## generate ninja file for .c and .olean files
+## generate ninja file to generate .c and .olean files
 
 ```
 bl gen <Pkg> > build.ninja
