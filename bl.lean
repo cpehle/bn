@@ -44,6 +44,8 @@ structure Context where
   emitC : Bool := true
   emitOLean : Bool := true
   buildC : Bool := true
+  buildExe : Bool := true
+  buildStaticLib : Bool := false
 
 def buildDep (ctx : Context) (name : Name) (foundModules : NameSet) : IO (List Name × NameSet) := do
   let leanFile := System.FilePath.toString $ Lean.modToFilePath "." name "lean"
@@ -61,7 +63,7 @@ def buildDep (ctx : Context) (name : Name) (foundModules : NameSet) : IO (List N
   if ctx.buildC then IO.println $ buildcobj cObjFile cFile
   return (directImports |>.filter (fun m => not $ foundModules.contains m), insertAll (NameSet.insert foundModules name) directImports)
 
-partial def build (ctx : Context) : IO Unit := do
+partial def build (ctx : Context) : IO UInt32 := do
   let modules := NameSet.empty
   let rec buildDeps (directImports : List Name) (foundModules : NameSet): IO NameSet := 
     match directImports with
@@ -92,22 +94,34 @@ partial def build (ctx : Context) : IO Unit := do
   if ctx.buildC then IO.println $ buildcobj cObjFile cFile
 
   let objs := foundModules.toList.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out" n "o")
-  let exe := Lean.modToFilePath "out" ctx.pkg "exe"
+  if ctx.buildExe then
+    let exe := Lean.modToFilePath "out" ctx.pkg "exe"
+    IO.println $ buildcexe exe objs
 
-  IO.println $ buildcexe exe objs
+  if ctx.buildStaticLib then
+    let lib := Lean.modToFilePath "out" ("lib" ++ ctx.pkg) "a"
+    IO.println $ buildar lib objs
+
+  return 0  
 
 def help := "bl : Build Lean Package
 
 Usage: 
-  bl <Pkg>
+  bl gen <Pkg> -- generate ninja rules to build .c and .olean files
+  bl gen-lib <Pkg> -- generate ninja rules to build a static library
+  bl gen-exe <Pkg> -- generate ninja rules to build an executable
 "
 
 def main (args : List String) : IO UInt32 := do
-  if args.length == 0 || args.length > 1 then
+  if args.length == 0 || args.length > 2 then
     IO.print help
     return 0
-  else 
-    let pkg :=  args.toArray[0].toName
-    build { pkg := pkg : Context }
+  let pkg :=  args.toArray[1].toName
+  match args.toArray[0] with
+  | "gen" => build { pkg := pkg, buildC := false, buildExe := false : Context }
+  | "gen-lib" => build { pkg := pkg, buildC := false, buildExe := false : Context }
+  | "gen-exe" =>  build { pkg := pkg : Context }
+  | other => do 
+    IO.print help
     return 0
 
