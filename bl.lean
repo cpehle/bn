@@ -65,12 +65,16 @@ def buildDep (ctx : Context) (name : Name) (foundModules : NameSet) : IO (List N
 
 partial def build (ctx : Context) : IO UInt32 := do
   let modules := NameSet.empty
-  let rec buildDeps (directImports : List Name) (foundModules : NameSet): IO NameSet := 
+  let rec buildDeps (directImports : List Name) (foundModules : NameSet) (emittedModules : NameSet): IO NameSet := 
     match directImports with
     | [] => return foundModules
     | List.cons di dis => do
-        let (additionalImports, foundModules) ← buildDep ctx di foundModules
-        buildDeps (dis ++ additionalImports) foundModules
+        if not $ emittedModules.contains di then
+          let emittedModules := emittedModules.insert di
+          let (additionalImports, foundModules) ← buildDep ctx di foundModules
+          buildDeps (dis ++ additionalImports) foundModules emittedModules
+        else 
+          buildDeps dis foundModules emittedModules
 
   let modules := modules.insert ctx.pkg
   let pkgFile := Lean.modToFilePath "." ctx.pkg "lean"
@@ -81,7 +85,7 @@ partial def build (ctx : Context) : IO UInt32 := do
   let directImports := imports |>.filter (·.getRoot == ctx.pkg)
 
   IO.println ruleLean
-  let foundModules ← buildDeps directImports modules
+  let foundModules ← buildDeps directImports modules modules
 
   let filePaths : List String := directImports.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out" n "olean")
 
