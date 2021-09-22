@@ -21,7 +21,7 @@ bl gen-exe <Pkg> > build.ninja
 so for example to generated the Lake executable
 
 ```
-git clone github.com/leanprover/lake
+git clone https://github.com/leanprover/lake
 cd lake
 bl gen-exe Lake > build.ninja
 ninja
