@@ -1,0 +1,8 @@
+*.c
+.ninja_log
+bazel-*
+bl
+build.ninja
+*.olean
+*.o
+*.exe
