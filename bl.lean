@@ -117,7 +117,7 @@ Usage:
 "
 
 def main (args : List String) : IO UInt32 := do
-  if args.length == 0 || args.length > 2 then
+  if not $ args.length == 2 then
     IO.print help
     return 0
   let pkg :=  args.toArray[1].toName
