@@ -39,7 +39,8 @@ cd mathport
 bl gen-lib Mathport > build.ninja
 ninja # results in out/libMathport.a and .olean files in out/
 ```
-one can then generate additional build files that will correctly link to the library just created:
+one can then generate additional build files that will correctly link to the library just created
+(at the moment it is assumed that all libraries can be either found in out/ or in the LEAN_PATH).
 ```
 bl gen-exe MathportApp > build-app.ninja
 ninja -f build-app.ninja # results in out/MathportApp.exe
