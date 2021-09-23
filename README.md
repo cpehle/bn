@@ -23,7 +23,7 @@ git clone https://github.com/leanprover/lake
 cd lake
 bl gen-exe Lake > build.ninja
 ninja
-./out/lake
+./out/Lake.exe
 ```
 
 ## generate ninja file for a static library
