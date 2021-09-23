@@ -17,9 +17,7 @@ this will produce an executable ```bl```, you can copy it somewhere in your path
 ```
 bl gen-exe <Pkg> > build.ninja
 ```
-
-so for example to generated the Lake executable
-
+for example to generated the Lake executable
 ```
 git clone https://github.com/leanprover/lake
 cd lake
@@ -32,8 +30,16 @@ ninja
 
 ```
 bl gen-lib <Pkg> > build.ninja
-ninja # results in out/Pkg.a
+ninja # results in out/libPkg.a (together with all the necessary .olean files)
 ```
+for example to generate the Mathport library
+```
+git clone https://github.com/leanprover/mathport.git
+cd mathport
+bl gen-lib Mathport > build.ninja
+ninja # results in out/libMathport.a and .olean files in out/)
+```
+
 
 ## generate ninja file to generate .c and .olean files
 
