@@ -128,7 +128,7 @@ def main (args : List String) : IO UInt32 := do
   let pkg :=  args.toArray[1].toName
   match args.toArray[0] with
   | "gen" => build { pkg := pkg, buildC := false, buildExe := false : Context }
-  | "gen-lib" => build { pkg := pkg, buildC := false, buildExe := false, buildStaticLib := true : Context }
+  | "gen-lib" => build { pkg := pkg, buildC := true, buildExe := false, buildStaticLib := true : Context }
   | "gen-exe" =>  build { pkg := pkg : Context }
   | other => do 
     IO.print help
