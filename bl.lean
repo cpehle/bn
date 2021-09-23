@@ -12,18 +12,23 @@ outpath = out
 
 rule leano
   command = LEAN_PATH=$outpath lean $in -o $out
+  description = compiling $in (.olean)
 
 rule leanc
   command = LEAN_PATH=$outpath lean $in -c $out
+  description = compiling $in (.c)
 
 rule cobj
   command = leanc -c $in -o $out
+  description = compiling $in (.o)
 
 rule cexe
   command = leanc $in -o $out
+  description = linking $out
 
 rule ar
   command = ar rcs $out $in
+  description = linking $out
 "
 
 def buildo (out : System.FilePath) (input : System.FilePath) (deps : List String) := s!"build {toString out}: leano {toString input} | {" ".joinWith deps}"
@@ -123,7 +128,7 @@ def main (args : List String) : IO UInt32 := do
   let pkg :=  args.toArray[1].toName
   match args.toArray[0] with
   | "gen" => build { pkg := pkg, buildC := false, buildExe := false : Context }
-  | "gen-lib" => build { pkg := pkg, buildC := false, buildExe := false : Context }
+  | "gen-lib" => build { pkg := pkg, buildC := false, buildExe := false, buildStaticLib := true : Context }
   | "gen-exe" =>  build { pkg := pkg : Context }
   | other => do 
     IO.print help
