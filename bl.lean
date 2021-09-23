@@ -108,7 +108,7 @@ partial def build (ctx : Context) : IO UInt32 := do
     IO.println $ buildcexe exe objs
 
   if ctx.buildStaticLib then
-    let lib := Lean.modToFilePath "out" ("lib" ++ ctx.pkg) "a"
+    let lib := Lean.modToFilePath "out" s!"lib{ctx.pkg.toString}" "a"
     IO.println $ buildar lib objs
 
   return 0  
