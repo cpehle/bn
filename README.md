@@ -37,7 +37,7 @@ for example to generate the Mathport library
 git clone https://github.com/leanprover/mathport.git
 cd mathport
 bl gen-lib Mathport > build.ninja
-ninja # results in out/libMathport.a and .olean files in out/)
+ninja # results in out/libMathport.a and .olean files in out/
 ```
 
 
