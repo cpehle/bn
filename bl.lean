@@ -58,7 +58,7 @@ structure Context where
   buildExe : Bool := true
   buildStaticLib : Bool := false
 
-def buildDep (ctx : Context) (name : Name) (foundModules : NameSet) : IO (List Name × NameSet) := do
+def buildDep (ctx : Context) (name : Name) (foundModules : NameSet) (h : IO.FS.Handle) : IO (List Name × NameSet) := do
   let leanFile := System.FilePath.toString $ Lean.modToFilePath "." name "lean"
   let contents ← IO.FS.readFile leanFile
   let (imports, _, _) ← Lean.Elab.parseImports contents leanFile
@@ -69,9 +69,9 @@ def buildDep (ctx : Context) (name : Name) (foundModules : NameSet) : IO (List N
   let cFile := System.FilePath.toString $ Lean.modToFilePath "out" name "c"
   let cObjFile := System.FilePath.toString $ Lean.modToFilePath "out" name "o"
 
-  if ctx.emitOLean then IO.println $ buildo oleanFile leanFile filePaths
-  if ctx.emitC then IO.println $ buildc cFile leanFile filePaths
-  if ctx.buildC then IO.println $ buildcobj cObjFile cFile
+  if ctx.emitOLean then h.putStrLn $ buildo oleanFile leanFile filePaths
+  if ctx.emitC then h.putStrLn $ buildc cFile leanFile filePaths
+  if ctx.buildC then h.putStrLn $ buildcobj cObjFile cFile
   return (directImports |>.filter (fun m => not $ foundModules.contains m), insertAll (NameSet.insert foundModules name) directImports)
 
 
@@ -105,7 +105,7 @@ partial def scan (ctx : Context) : IO NameSet := do
   let modules := modules.insert ctx.pkg
   return (← scanDeps directImports modules dependencies)
 
-partial def build (ctx : Context) : IO UInt32 := do
+partial def build (ctx : Context) (h : IO.FS.Handle) : IO UInt32 := do
   let modules := NameSet.empty
   let rec buildDeps (directImports : List Name) (foundModules : NameSet) (emittedModules : NameSet): IO NameSet := 
     match directImports with
@@ -113,7 +113,7 @@ partial def build (ctx : Context) : IO UInt32 := do
     | List.cons di dis => do
         if not $ emittedModules.contains di then
           let emittedModules := emittedModules.insert di
-          let (additionalImports, foundModules) ← buildDep ctx di foundModules
+          let (additionalImports, foundModules) ← buildDep ctx di foundModules h
           buildDeps (dis ++ additionalImports) foundModules emittedModules
         else 
           buildDeps dis foundModules emittedModules
@@ -126,7 +126,7 @@ partial def build (ctx : Context) : IO UInt32 := do
   let imports := imports.map (·.module)
   let directImports := imports |>.filter (·.getRoot == ctx.pkg)
 
-  IO.println ruleLean
+  h.putStrLn ruleLean
   let foundModules ← buildDeps directImports modules modules
 
   let filePaths : List String := directImports.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out" n "olean")
@@ -135,18 +135,18 @@ partial def build (ctx : Context) : IO UInt32 := do
   let cFile := Lean.modToFilePath "out" ctx.pkg "c"
   let cObjFile := System.FilePath.toString $ Lean.modToFilePath "out" ctx.pkg "o"
 
-  if ctx.emitOLean then IO.println $ buildo oleanFile pkgFile filePaths
-  if ctx.emitC then IO.println $ buildc cFile pkgFile filePaths
-  if ctx.buildC then IO.println $ buildcobj cObjFile cFile
+  if ctx.emitOLean then h.putStrLn $ buildo oleanFile pkgFile filePaths
+  if ctx.emitC then h.putStrLn $ buildc cFile pkgFile filePaths
+  if ctx.buildC then h.putStrLn $ buildcobj cObjFile cFile
 
   let objs := foundModules.toList.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out" n "o")
   if ctx.buildExe then
     let exe := Lean.modToFilePath "out" ctx.pkg "exe"
-    IO.println $ buildcexe exe objs ctx.externalDependencies
+    h.putStrLn $ buildcexe exe objs ctx.externalDependencies
 
   if ctx.buildStaticLib then
     let lib := Lean.modToFilePath "out" s!"lib{ctx.pkg.toString}" "a"
-    IO.println $ buildar lib objs ctx.externalDependencies
+    h.putStrLn $ buildar lib objs ctx.externalDependencies
 
   return 0  
 
@@ -156,6 +156,7 @@ Usage:
   bl gen <Pkg> -- generate ninja rules to build .c and .olean files
   bl gen-lib <Pkg> -- generate ninja rules to build a static library
   bl gen-exe <Pkg> -- generate ninja rules to build an executable
+  bl build <Pkg> -- generate ninja rules and invoke ninja in one go
 "
 
 def builtinLibraries : NameSet := insertAll NameSet.empty [`Init, `Std, `Lean] 
@@ -168,9 +169,13 @@ def main (args : List String) : IO UInt32 := do
   let externalDependencies := (← scan { pkg := pkg : Context }).toList
     |> List.filter (fun x => not $ builtinLibraries.contains x.getRoot ) 
   match args.toArray[0] with
-  | "gen" => build { pkg := pkg, buildC := false, buildExe := false : Context }
-  | "gen-lib" => build { pkg := pkg, buildC := true, buildExe := false, buildStaticLib := true, externalDependencies := externalDependencies : Context }
-  | "gen-exe" =>  build { pkg := pkg, externalDependencies := externalDependencies : Context }
+  | "gen" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ build { pkg := pkg, buildC := false, buildExe := false : Context }
+  | "gen-lib" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ build { pkg := pkg, buildC := true, buildExe := false, buildStaticLib := true, externalDependencies := externalDependencies : Context }
+  | "gen-exe" =>  IO.FS.withFile "build.ninja" IO.FS.Mode.write $ build { pkg := pkg, externalDependencies := externalDependencies : Context }
+  | "build" => do
+    let _ ← IO.FS.withFile "build.ninja" IO.FS.Mode.write $ build { pkg := pkg, buildC := true, buildExe := false, buildStaticLib := true, externalDependencies := externalDependencies : Context }
+    let child ← IO.Process.spawn {cmd := "ninja", args := #[]}
+    child.wait
   | other => do 
     IO.print help
     return 0
