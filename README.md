@@ -12,13 +12,13 @@ this will produce an executable ```bl```, you can copy it somewhere in your path
 ## generate ninja file for an executable
 
 ```
-bl gen-exe <Pkg> > build.ninja
+bl gen-exe <Pkg>
 ```
 for example to generated the Lake executable
 ```
 git clone https://github.com/leanprover/lake
 cd lake
-bl gen-exe Lake > build.ninja
+bl gen-exe Lake
 ninja
 ./out/Lake.exe
 ```
@@ -26,26 +26,26 @@ ninja
 ## generate ninja file for a static library
 
 ```
-bl gen-lib <Pkg> > build.ninja
+bl gen-lib <Pkg>
 ninja # results in out/libPkg.a (together with all the necessary .olean files)
 ```
 for example to generate the Mathport library
 ```
 git clone https://github.com/leanprover/mathport.git
 cd mathport
-bl gen-lib Mathport > build.ninja
+bl gen-lib Mathport
 ninja # results in out/libMathport.a and .olean files in out/
 ```
 one can then generate additional build files that will correctly link to the library just created
 (at the moment it is assumed that all libraries can be either found in out/ or in the LEAN_PATH).
 ```
-bl gen-exe MathportApp > build-app.ninja
-ninja -f build-app.ninja # results in out/MathportApp.exe
+bl gen-exe MathportApp
+ninja # results in out/MathportApp.exe
 ```
 
 ## generate ninja file to generate .c and .olean files
 
 ```
-bl gen <Pkg> > build.ninja
+bl gen <Pkg>
 ninja
 ```
