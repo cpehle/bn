@@ -140,7 +140,7 @@ partial def build (ctx : Context) (h : IO.FS.Handle) : IO UInt32 := do
 
   let objs := foundModules.toList.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out" n "o")
   if ctx.buildExe then
-    let exe := Lean.modToFilePath "out" ctx.pkg "exe"
+    let exe := Lean.modToFilePath "out" ctx.pkg ""
     h.putStrLn $ buildcexe exe objs ctx.externalDependencies
 
   if ctx.buildStaticLib then
@@ -175,6 +175,17 @@ Usage:
 "
 
 def main (args : List String) : IO UInt32 := do
+  if args.length < 1 then
+    IO.print help
+    return 0
+  
+  if args.toArray[0] == "clean" then
+    let child ← IO.Process.spawn {cmd := "ninja", args := #["-t", "clean"]}
+    let _ ← child.wait
+    let child ← IO.Process.spawn {cmd := "rm", args := #["build.ninja"]}
+    let _ ← child.wait
+    return 0
+
   if args.length != 2 then
     IO.print help
     return 0
@@ -199,11 +210,6 @@ def main (args : List String) : IO UInt32 := do
       build ctx h 
     let child ← IO.Process.spawn {cmd := "ninja", args := #[]}
     child.wait
-  | "clean" => do
-      let child ← IO.Process.spawn {cmd := "ninja", args := #["-t", "clean"]}
-      let _ ← child.wait
-      let child ← IO.Process.spawn {cmd := "rm", args := #["build.ninja"]}
-      child.wait
   | other => do 
     IO.print help
     return 0
