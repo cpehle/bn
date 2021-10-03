@@ -164,14 +164,18 @@ partial def buildDependencies (ctx : Context) (h : IO.FS.Handle) : IO UInt32 :=
         buildDeps (additionalDependencies ++ deps) alreadyBuild
   buildDeps ctx.externalDependencies (NameSet.empty.insert ctx.pkg)
 
+
 def help := "bl : Build Lean Package
 
-Usage: 
-  bl gen <Pkg>     -- generate ninja rules to build .c and .olean files
-  bl gen-lib <Pkg> -- generate ninja rules to build a static library
-  bl gen-exe <Pkg> -- generate ninja rules to build an executable
-  bl build <Pkg>   -- build a package including all dependencies
-  bl clean         -- remove the build artifacts
+Usage:
+  bl gen    (c | lib | exe) <Pkg> -- generate ninja rules
+  bl build  (c | lib | exe) <Pkg> -- build a package including all dependencies
+  bl clean                        -- remove the build artifacts
+
+where
+  c   : generate or build c files
+  lib : generate or build a static library
+  exe : generate or build an executable
 "
 
 def main (args : List String) : IO UInt32 := do
@@ -186,23 +190,31 @@ def main (args : List String) : IO UInt32 := do
     let _ ← child.wait
     return 0
 
-  if args.length != 2 then
+  if args.length != 3 then
     IO.print help
     return 0
-  let pkg :=  args.toArray[1].toName
+  let pkg :=  args.toArray[2].toName
   let externalDependencies := (← scan { pkg := pkg : Context }).toList
     |> List.filter (fun x => not $ builtinLibraries.contains x.getRoot )
-  match args.toArray[0] with
-  | "gen" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
+  match args.toArray[0], args.toArray[1] with
+  | "gen", "c" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
       build { pkg := pkg, buildC := false, buildExe := false : Context } h
-  | "gen-lib" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
+  | "gen", "lib" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
       build { pkg := pkg, buildC := true, buildExe := false, buildStaticLib := true, externalDependencies := externalDependencies : Context } h
-  | "gen-exe" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
+  | "gen", "exe" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
       build { pkg := pkg, externalDependencies := externalDependencies : Context } h
-  | "build" => do
+  | "build", "exe" => do
+    let _ ← IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
+      h.putStrLn ruleLean
+      let ctx := { pkg := pkg, buildC := true, buildExe := true, buildStaticLib := false, externalDependencies := externalDependencies, trackExternalDeps := true : Context }
+      let _ ← buildDependencies ctx h
+      build ctx h 
+    let child ← IO.Process.spawn {cmd := "ninja", args := #[]}
+    child.wait
+  | "build", "lib" => do
     let _ ← IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
       let ctx := { pkg := pkg, buildC := true, buildExe := false, buildStaticLib := true, externalDependencies := externalDependencies, trackExternalDeps := true : Context }
@@ -210,7 +222,7 @@ def main (args : List String) : IO UInt32 := do
       build ctx h 
     let child ← IO.Process.spawn {cmd := "ninja", args := #[]}
     child.wait
-  | other => do 
+  | other, other_ => do 
     IO.print help
     return 0
 
