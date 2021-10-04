@@ -1,8 +1,11 @@
 *.c
 .ninja_log
 bazel-*
-bl
+bn
 build.ninja
 *.olean
 *.o
 *.exe
+out/
+.metals
+.vscode
