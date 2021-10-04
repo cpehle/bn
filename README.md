@@ -11,7 +11,7 @@ this will produce an executable ```bn```, you can copy it somewhere in your path
 
 ## building a library or executable including dependencies
 
-It is possible to use bl to compile an executable and its dependencies by invoking
+It is possible to use ```bn``` to compile an executable and its dependencies by invoking
 ```
 bn build exe <PkgName>
 ```
