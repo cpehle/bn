@@ -140,7 +140,7 @@ partial def build (ctx : Context) (h : IO.FS.Handle) : IO UInt32 := do
 
   let objs := foundModules.toList.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out" n "o")
   if ctx.buildExe then
-    let exe := Lean.modToFilePath "out" ctx.pkg ""
+    let exe := Lean.modToFilePath "out" (ctx.pkg.toString.toLower) ""
     h.putStrLn $ buildcexe exe objs ctx.externalDependencies
 
   if ctx.buildStaticLib then
@@ -151,10 +151,10 @@ partial def build (ctx : Context) (h : IO.FS.Handle) : IO UInt32 := do
 
 def builtinLibraries : NameSet := insertAll NameSet.empty [`Init, `Std, `Lean] 
 
-partial def buildDependencies (ctx : Context) (h : IO.FS.Handle) : IO UInt32 :=
-  let rec buildDeps (dependencies : List Name) (alreadyBuild : NameSet) : IO UInt32 := 
+partial def buildDependencies (ctx : Context) (h : IO.FS.Handle) : IO NameSet :=
+  let rec buildDeps (dependencies : List Name) (alreadyBuild : NameSet) : IO NameSet := 
     match dependencies with
-    | [] => return 0
+    | [] => return alreadyBuild
     | List.cons dep deps => do
         let immediateDependencies := (← scan { pkg := dep : Context }).toList
         |> List.filter (fun x => not $ builtinLibraries.contains x.getRoot ) 
@@ -164,18 +164,17 @@ partial def buildDependencies (ctx : Context) (h : IO.FS.Handle) : IO UInt32 :=
         buildDeps (additionalDependencies ++ deps) alreadyBuild
   buildDeps ctx.externalDependencies (NameSet.empty.insert ctx.pkg)
 
-
-def help := "bl : Build Lean Package
+def help := "bn : build lean
 
 Usage:
-  bl gen    (c | lib | exe) <Pkg> -- generate ninja rules
-  bl build  (c | lib | exe) <Pkg> -- build a package including all dependencies
-  bl clean                        -- remove the build artifacts
+  bn gen    (c | lib | exe) <Pkg> -- generate ninja rules
+  bn build  (c | lib | exe) <Pkg> -- build the corresponding target
+  bn clean                        -- remove the build artifacts
 
 where
-  c   : generate or build c files
-  lib : generate or build a static library
-  exe : generate or build an executable
+  c   : c files
+  lib : a static library
+  exe : an executable
 "
 
 def main (args : List String) : IO UInt32 := do
@@ -193,19 +192,25 @@ def main (args : List String) : IO UInt32 := do
   if args.length != 3 then
     IO.print help
     return 0
+
   let pkg :=  args.toArray[2].toName
-  let externalDependencies := (← scan { pkg := pkg : Context }).toList
-    |> List.filter (fun x => not $ builtinLibraries.contains x.getRoot )
+  let externalDependencies := (← scan { pkg := pkg : Context }).toList |> List.filter (fun x => not $ builtinLibraries.contains x.getRoot )
   match args.toArray[0], args.toArray[1] with
   | "gen", "c" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
       build { pkg := pkg, buildC := false, buildExe := false : Context } h
   | "gen", "lib" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
-      h.putStrLn ruleLean
+      h.putStrLn ruleLean  
       build { pkg := pkg, buildC := true, buildExe := false, buildStaticLib := true, externalDependencies := externalDependencies : Context } h
   | "gen", "exe" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
       build { pkg := pkg, externalDependencies := externalDependencies : Context } h
+  | "build", "c" => do 
+    let _ ← IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
+      h.putStrLn ruleLean
+      build { pkg := pkg, buildC := false, buildExe := false : Context } h
+    let child ← IO.Process.spawn {cmd := "ninja", args := #[]}
+    child.wait
   | "build", "exe" => do
     let _ ← IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean

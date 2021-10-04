@@ -1,1 +1,1 @@
-lean bl.lean -c bl.c && leanc bl.c -o bl
+lean bn.lean -c bn.c && leanc bn.c -o bn
