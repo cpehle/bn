@@ -8,7 +8,7 @@ def String.joinWith (sep : String) (l : List String) : String :=
   l.foldl (fun r s => r ++ sep ++ s) ""
 
 def ruleLean := s!"
-outpath = out
+outpath = out/olean
 libraries =
 
 rule leano
@@ -20,11 +20,11 @@ rule leanc
   description = compiling $in (.c)
 
 rule cobj
-  command = leanc -c $in -o $out -L out $libraries
+  command = leanc -c $in -o $out -L out/lib $libraries
   description = compiling $in (.o)
 
 rule cexe
-  command = leanc $in -L out $libraries -o $out 
+  command = leanc $in -L out/lib $libraries -o $out 
   description = linking $out
 
 rule ar
@@ -35,10 +35,10 @@ rule ar
 def buildo (out : System.FilePath) (input : System.FilePath) (deps : List String) := s!"build {toString out}: leano {toString input} | {" ".joinWith deps}"
 def buildc (out : System.FilePath) (input : System.FilePath) (deps : List String) := s!"build {toString out}: leanc {toString input} | {" ".joinWith deps}"
 def buildcobj (out : System.FilePath) (input : System.FilePath) := s!"build {toString out}: cobj {toString input}"
-def buildcexe (out : System.FilePath) (objs : List String) (libraries : List Name):= s!"build {toString out}: cexe {" ".joinWith objs} | {" ".joinWith (List.map (fun l =>  (Lean.modToFilePath "out" s!"lib{l}" "a").toString) libraries)}
+def buildcexe (out : System.FilePath) (objs : List String) (libraries : List Name):= s!"build {toString out}: cexe {" ".joinWith objs} | {" ".joinWith (List.map (fun l =>  (Lean.modToFilePath "out/lib" s!"lib{l}" "a").toString) libraries)}
   libraries = {" ".joinWith (List.map (fun l => s!"-l{l}") libraries)}
 "
-def buildar (out : System.FilePath) (objs : List String) (libraries : List Name) := s!"build {toString out}: ar {" ".joinWith objs} | {" ".joinWith (List.map (fun l =>  (Lean.modToFilePath "out" s!"lib{l}" "a").toString) libraries)}
+def buildar (out : System.FilePath) (objs : List String) (libraries : List Name) := s!"build {toString out}: ar {" ".joinWith objs} | {" ".joinWith (List.map (fun l =>  (Lean.modToFilePath "out/lib" s!"lib{l}" "a").toString) libraries)}
   libraries = {" ".joinWith (List.map (fun l => s!"-l{l}") libraries)}
 "
 
@@ -65,10 +65,10 @@ def buildDep (ctx : Context) (name : Name) (foundModules : NameSet) (h : IO.FS.H
   let (imports, _, _) ← Lean.Elab.parseImports contents leanFile
   let imports := imports.map (·.module)
   let directImports := imports |>.filter (·.getRoot == ctx.pkg)
-  let filePaths : List String := directImports.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out" n "olean")
-  let oleanFile := Lean.modToFilePath "out" name "olean" |>.toString 
-  let cFile := Lean.modToFilePath "out" name "c" |>.toString
-  let cObjFile := Lean.modToFilePath "out" name "o" |>.toString
+  let filePaths : List String := directImports.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out/olean" n "olean")
+  let oleanFile := Lean.modToFilePath "out/olean" name "olean" |>.toString 
+  let cFile := Lean.modToFilePath "out/c" name "c" |>.toString
+  let cObjFile := Lean.modToFilePath "out/o" name "o" |>.toString
 
   if ctx.emitOLean then h.putStrLn $ buildo oleanFile leanFile filePaths
   if ctx.emitC then h.putStrLn $ buildc cFile leanFile filePaths
@@ -128,23 +128,23 @@ partial def build (ctx : Context) (h : IO.FS.Handle) : IO UInt32 := do
   let directImports := imports |>.filter (·.getRoot == ctx.pkg)
   let foundModules ← buildDeps directImports modules modules
 
-  let filePaths : List String := directImports.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out" n "olean")
+  let filePaths : List String := directImports.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out/olean" n "olean")
 
-  let oleanFile := Lean.modToFilePath "out" ctx.pkg "olean"
-  let cFile := Lean.modToFilePath "out" ctx.pkg "c"
-  let cObjFile := Lean.modToFilePath "out" ctx.pkg "o" |>.toString
+  let oleanFile := Lean.modToFilePath "out/olean" ctx.pkg "olean"
+  let cFile := Lean.modToFilePath "out/c" ctx.pkg "c"
+  let cObjFile := Lean.modToFilePath "out/o" ctx.pkg "o" |>.toString
 
-  if ctx.emitOLean then h.putStrLn $ buildo oleanFile pkgFile (filePaths ++ if ctx.trackExternalDeps then (ctx.externalDependencies.map $ fun n => Lean.modToFilePath "out" n "olean" |> toString) else [])
-  if ctx.emitC then h.putStrLn $ buildc cFile pkgFile (filePaths ++ if ctx.trackExternalDeps then  (ctx.externalDependencies.map $ fun n => Lean.modToFilePath "out" n "olean" |> toString) else [])
+  if ctx.emitOLean then h.putStrLn $ buildo oleanFile pkgFile (filePaths ++ if ctx.trackExternalDeps then (ctx.externalDependencies.map $ fun n => Lean.modToFilePath "out/olean" n "olean" |> toString) else [])
+  if ctx.emitC then h.putStrLn $ buildc cFile pkgFile (filePaths ++ if ctx.trackExternalDeps then  (ctx.externalDependencies.map $ fun n => Lean.modToFilePath "out/olean" n "olean" |> toString) else [])
   if ctx.buildC then h.putStrLn $ buildcobj cObjFile cFile
 
-  let objs := foundModules.toList.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out" n "o")
+  let objs := foundModules.toList.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out/o" n "o")
   if ctx.buildExe then
-    let exe := Lean.modToFilePath "out" (ctx.pkg.toString.toLower) ""
+    let exe := Lean.modToFilePath "out/exe" (ctx.pkg.toString.toLower) ""
     h.putStrLn $ buildcexe exe objs ctx.externalDependencies
 
   if ctx.buildStaticLib then
-    let lib := Lean.modToFilePath "out" s!"lib{ctx.pkg.toString}" "a"
+    let lib := Lean.modToFilePath "out/lib" s!"lib{ctx.pkg.toString}" "a"
     h.putStrLn $ buildar lib objs ctx.externalDependencies
 
   return 0

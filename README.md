@@ -33,7 +33,7 @@ git clone https://github.com/leanprover/lake
 cd lake
 bn gen exe Lake
 ninja
-./out/Lake
+./out/lake
 ```
 
 ## generate ninja file for a static library
