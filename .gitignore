@@ -9,3 +9,4 @@ build.ninja
 out/
 .metals
 .vscode
+.DS_Store
