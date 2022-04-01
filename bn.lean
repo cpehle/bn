@@ -3,6 +3,20 @@ import Lean.Util.Path
 import Lean.Data.Name
 import Init.System
 
+/-! 
+bn : build lean
+
+Usage:
+  bn gen    (c | lib | exe) <Pkg> -- generate ninja rules
+  bn build  (c | lib | exe) <Pkg> -- build the corresponding target
+  bn clean                        -- remove the build artifacts
+
+where
+  c   : c files
+  lib : a static library
+  exe : an executable
+-/
+
 open Lean
 
 def String.joinWith (sep : String) (l : List String) : String :=
