@@ -15,12 +15,22 @@ It is possible to use ```bn``` to compile an executable and its dependencies by 
 ```
 bn build exe <PkgName>
 ```
-similarly one can build a library and its dependencies by invoking
+for example to build the Lake executable
+```
+git clone https://github.com/leanprover/lake
+cd lake
+bn build exe Lake/Main
+```
+Note that this will correctly build the ```Lake``` library as a dependency and link to it.
+
+Similarly one can build a library and its dependencies by invoking
 ```
 bn build lib <PkgName>
 ```
-it is currently assumed that all root module files can be found in the root
-directory.
+to continue the example above we could invoke
+```
+bn build lib Lake
+```
 
 ## generate ninja file for an executable
 
@@ -31,10 +41,11 @@ for example to generated the Lake executable
 ```
 git clone https://github.com/leanprover/lake
 cd lake
-bn gen exe Lake
+bn gen exe Lake/Main
 ninja
-./out/lake
+./out/exe/«lake/main»
 ```
+as you can see from this example, the generated executable name is not necessarily ideal. 
 
 ## generate ninja file for a static library
 
