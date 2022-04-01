@@ -1,3 +1,4 @@
+import Lean
 import Lean.Elab.Import
 import Lean.Util.Path
 import Lean.Data.Name
@@ -7,14 +8,15 @@ import Init.System
 bn : build lean
 
 Usage:
-  bn gen    (c | lib | exe) <Pkg> -- generate ninja rules
-  bn build  (c | lib | exe) <Pkg> -- build the corresponding target
+  bn gen    (c | lib | exe | olean) <Pkg> -- generate ninja rules
+  bn build  (c | lib | exe | olean) <Pkg> -- build the corresponding target
   bn clean                        -- remove the build artifacts
 
 where
   c   : c files
   lib : a static library
   exe : an executable
+  olean : olean files
 -/
 
 open Lean
@@ -182,14 +184,15 @@ partial def buildDependencies (ctx : Context) (h : IO.FS.Handle) : IO NameSet :=
 def help := "bn : build lean
 
 Usage:
-  bn gen    (c | lib | exe) <Pkg> -- generate ninja rules
-  bn build  (c | lib | exe) <Pkg> -- build the corresponding target
-  bn clean                        -- remove the build artifacts
+  bn gen    (c | lib | exe | olean) <Pkg> -- generate ninja rules
+  bn build  (c | lib | exe | olean) <Pkg> -- build the corresponding target
+  bn clean                                -- remove the build artifacts
 
 where
   c   : c files
   lib : a static library
   exe : an executable
+  olean : olean files
 "
 
 def main (args : List String) : IO UInt32 := do
@@ -214,6 +217,9 @@ def main (args : List String) : IO UInt32 := do
   | "gen", "c" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
       build { pkg := pkg, buildC := false, buildExe := false : Context } h
+  | "gen", "olean" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
+      h.putStrLn ruleLean
+      build { pkg := pkg, buildC := false, emitC := false, buildExe := false : Context } h
   | "gen", "lib" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean  
       build { pkg := pkg, buildC := true, buildExe := false, buildStaticLib := true, externalDependencies := externalDependencies : Context } h
@@ -238,6 +244,14 @@ def main (args : List String) : IO UInt32 := do
     let _ ← IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
       let ctx := { pkg := pkg, buildC := true, buildExe := false, buildStaticLib := true, externalDependencies := externalDependencies, trackExternalDeps := true : Context }
+      let _ ← buildDependencies ctx h
+      build ctx h 
+    let child ← IO.Process.spawn {cmd := "ninja", args := #[]}
+    child.wait
+  | "build", "olean" => do
+    let _ ← IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
+      h.putStrLn ruleLean
+      let ctx := { pkg := pkg, emitC := false, buildExe := false,  buildC := false,  externalDependencies := externalDependencies, trackExternalDeps := true : Context }
       let _ ← buildDependencies ctx h
       build ctx h 
     let child ← IO.Process.spawn {cmd := "ninja", args := #[]}
