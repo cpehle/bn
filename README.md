@@ -60,9 +60,24 @@ bn gen exe <Pkg>
 ninja
 ```
 
-## generate ninja file to generate .c and .olean files
+## performance
+
+Since most of the work is done by ```ninja```, ```bn``` is pretty fast. For example on mathlib4 
 
 ```
-bn gen <Pkg>
-ninja
+git clone git@github.com:leanprover-community/mathlib4.git
+cd mathlib4/
+time bn build olean Mathlib
+```
+results in
+```
+150.85s user 22.96s system 416% cpu 41.744 total
+```
+on my laptop. Whereas
+```
+time lake build
+```
+results in
+```
+151.47s user 23.65s system 409% cpu 42.780 total
 ```
