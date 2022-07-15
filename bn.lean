@@ -200,7 +200,7 @@ def main (args : List String) : IO UInt32 := do
     IO.print help
     return 0
   
-  if args.toArray[0] == "clean" then
+  if args.toArray[0]! == "clean" then
     let child ← IO.Process.spawn {cmd := "ninja", args := #["-t", "clean"]}
     let _ ← child.wait
     let child ← IO.Process.spawn {cmd := "rm", args := #["build.ninja"]}
@@ -211,9 +211,9 @@ def main (args : List String) : IO UInt32 := do
     IO.print help
     return 0
 
-  let pkg :=  args.toArray[2].toName
+  let pkg :=  args.toArray[2]!.toName
   let externalDependencies := (← scan { pkg := pkg : Context }).toList |> List.filter (fun x => not $ builtinLibraries.contains x.getRoot )
-  match args.toArray[0], args.toArray[1] with
+  match args.toArray[0]!, args.toArray[1]! with
   | "gen", "c" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
       build { pkg := pkg, buildC := false, buildExe := false : Context } h
@@ -256,7 +256,7 @@ def main (args : List String) : IO UInt32 := do
       build ctx h 
     let child ← IO.Process.spawn {cmd := "ninja", args := #[]}
     child.wait
-  | other, other_ => do 
+  | _, _ => do 
     IO.print help
     return 0
 
