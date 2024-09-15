@@ -10,7 +10,7 @@ bn : build lean
 Usage:
   bn gen    (c | lib | exe | olean) <Pkg> -- generate ninja rules
   bn build  (c | lib | exe | olean) <Pkg> -- build the corresponding target
-  bn clean                        -- remove the build artifacts
+  bn clean                                -- remove the build artifacts
 
 where
   c   : c files
@@ -52,10 +52,10 @@ rule ar
 def buildo (out : System.FilePath) (input : System.FilePath) (deps : List String) := s!"build {toString out}: leano {toString input} | {" ".joinWith deps}"
 def buildc (out : System.FilePath) (input : System.FilePath) (deps : List String) := s!"build {toString out}: leanc {toString input} | {" ".joinWith deps}"
 def buildcobj (out : System.FilePath) (input : System.FilePath) := s!"build {toString out}: cobj {toString input}"
-def buildcexe (out : System.FilePath) (objs : List String) (libraries : List Name):= s!"build {toString out}: cexe {" ".joinWith objs} | {" ".joinWith (List.map (fun l =>  (Lean.modToFilePath "out" s!"lib{l}" "a").toString) libraries)}
+def buildcexe (out : System.FilePath) (objs : List String) (libraries : List Name):= s!"build {toString out}: cexe {" ".joinWith objs} | {" ".joinWith (List.map (fun l =>  (Lean.modToFilePath "out" l "a").toString) libraries)}
   libraries = {" ".joinWith (List.map (fun l => s!"-l{l}") libraries)}
 "
-def buildar (out : System.FilePath) (objs : List String) (libraries : List Name) := s!"build {toString out}: ar {" ".joinWith objs} | {" ".joinWith (List.map (fun l =>  (Lean.modToFilePath "out" s!"lib{l}" "a").toString) libraries)}
+def buildar (out : System.FilePath) (objs : List String) (libraries : List Name) := s!"build {toString out}: ar {" ".joinWith objs} | {" ".joinWith (List.map (fun l =>  (Lean.modToFilePath "out" l "a").toString) libraries)}
   libraries = {" ".joinWith (List.map (fun l => s!"-l{l}") libraries)}
 "
 
@@ -75,6 +75,7 @@ structure Context where
   buildExe : Bool := true
   buildStaticLib : Bool := false
   trackExternalDeps : Bool := false
+  deriving Repr, BEq
 
 def buildDep (ctx : Context) (name : Name) (foundModules : NameSet) (h : IO.FS.Handle) : IO (List Name × NameSet) := do
   let leanFile := System.FilePath.toString $ Lean.modToFilePath "." name "lean"
@@ -157,11 +158,11 @@ partial def build (ctx : Context) (h : IO.FS.Handle) : IO UInt32 := do
 
   let objs := foundModules.toList.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out/o" n "o")
   if ctx.buildExe then
-    let exe := Lean.modToFilePath "out/exe" (ctx.pkg.toString.toLower) ""
+    let exe := Lean.modToFilePath "out/exe" ctx.pkg ""
     h.putStrLn $ buildcexe exe objs ctx.externalDependencies
 
   if ctx.buildStaticLib then
-    let lib := Lean.modToFilePath "out" s!"lib{ctx.pkg.toString}" "a"
+    let lib := Lean.modToFilePath "out" ctx.pkg "a"
     h.putStrLn $ buildar lib objs ctx.externalDependencies
 
   return 0
@@ -180,6 +181,7 @@ partial def buildDependencies (ctx : Context) (h : IO.FS.Handle) : IO NameSet :=
         let alreadyBuild := alreadyBuild.insert dep
         buildDeps (additionalDependencies ++ deps) alreadyBuild
   buildDeps ctx.externalDependencies (NameSet.empty.insert ctx.pkg)
+
 
 def help := "bn : build lean
 
@@ -213,6 +215,7 @@ def main (args : List String) : IO UInt32 := do
 
   let pkg :=  args.toArray[2]!.toName
   let externalDependencies := (← scan { pkg := pkg : Context }).toList |> List.filter (fun x => not $ builtinLibraries.contains x.getRoot )
+
   match args.toArray[0]!, args.toArray[1]! with
   | "gen", "c" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
