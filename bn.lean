@@ -47,6 +47,10 @@ rule cexe
 rule ar
   command = ar rcs $out $in
   description = linking $out
+
+rule clone_dep:
+  command = [ ! -d $out ] && git clone $url $depdir || true
+  description = cloning $dep from $url
 "
 
 def buildo (out : System.FilePath) (input : System.FilePath) (deps : List String) := s!"build {toString out}: leano {toString input} | {" ".joinWith deps}"
@@ -55,10 +59,10 @@ def buildcobj (out : System.FilePath) (input : System.FilePath) := s!"build {toS
 def buildcexe (out : System.FilePath) (objs : List String) (libraries : List Name):= s!"build {toString out}: cexe {" ".joinWith objs} | {" ".joinWith (List.map (fun l =>  (Lean.modToFilePath "out" l "a").toString) libraries)}
   libraries = {" ".joinWith (List.map (fun l => s!"-l{l}") libraries)}
 "
-def buildar (out : System.FilePath) (objs : List String) (libraries : List Name) := s!"build {toString out}: ar {" ".joinWith objs} | {" ".joinWith (List.map (fun l =>  (Lean.modToFilePath "out" l "a").toString) libraries)}
-  libraries = {" ".joinWith (List.map (fun l => s!"-l{l}") libraries)}
-"
-
+def buildar (out : System.FilePath) (objs : List String) (libraries : List Name) :=
+  let libnames := List.map (fun l =>  (Lean.modToFilePath "out" ("lib" ++ l.toString).toName "a").toString) libraries
+  s!"build {toString out}: ar {" ".joinWith objs} | {" ".joinWith libnames}
+  libraries = {" ".joinWith (List.map (fun l => s!"-l{l}") libraries)}"
 
 partial def insertAll (self : NameSet) (names : List Name) :=
   let rec insertRemaining (names : List Name) (acc : NameSet) := match names with
@@ -75,19 +79,27 @@ structure Context where
   buildExe : Bool := true
   buildStaticLib : Bool := false
   trackExternalDeps : Bool := false
+  outDir : System.FilePath := "out"
   deriving Repr, BEq
+
+def getImports (name : Name) : IO (Array Name) := do
+  let leanFile := System.FilePath.toString $ Lean.modToFilePath "." name "lean"
+  try
+    let contents ← IO.FS.readFile leanFile
+    let (imports, _, _) ← Lean.Elab.parseImports contents leanFile
+    return imports.map (·.module)
+  catch _ =>
+    IO.println s!"Error: File not found: {leanFile}"
+    return #[]
 
 def buildDep (ctx : Context) (name : Name) (foundModules : NameSet) (h : IO.FS.Handle) : IO (List Name × NameSet) := do
   let leanFile := System.FilePath.toString $ Lean.modToFilePath "." name "lean"
-  let contents ← IO.FS.readFile leanFile
-  let (imports, _, _) ← Lean.Elab.parseImports contents leanFile
-  let imports := imports.map (·.module)
+  let imports ← getImports name
   let directImports := imports |>.filter (·.getRoot == ctx.pkg) |> Array.toList
   let filePaths : List String := directImports.map (fun n => System.FilePath.toString $ Lean.modToFilePath "out" n "olean")
   let oleanFile := Lean.modToFilePath "out" name "olean" |>.toString
   let cFile := Lean.modToFilePath "out/c" name "c" |>.toString
   let cObjFile := Lean.modToFilePath "out/o" name "o" |>.toString
-
   if ctx.emitOLean then h.putStrLn $ buildo oleanFile leanFile filePaths
   if ctx.emitC then h.putStrLn $ buildc cFile leanFile filePaths
   if ctx.buildC then h.putStrLn $ buildcobj cObjFile cFile
@@ -95,10 +107,7 @@ def buildDep (ctx : Context) (name : Name) (foundModules : NameSet) (h : IO.FS.H
 
 
 def scanDep (ctx : Context) (name : Name) (foundModules : NameSet) (dependencies : NameSet) : IO (List Name × NameSet × NameSet) := do
-  let leanFile := System.FilePath.toString $ Lean.modToFilePath "." name "lean"
-  let contents ← IO.FS.readFile leanFile
-  let (imports, _, _) ← Lean.Elab.parseImports contents leanFile
-  let imports := imports.map (·.module)
+  let imports ← getImports name
   let directImports := imports |>.filter (·.getRoot == ctx.pkg) |> Array.toList
   let dependencies := insertAll dependencies (imports |>.filter (·.getRoot != ctx.pkg) |>.map (·.getRoot) |>.toList)
   return (directImports |>.filter (fun m => not $ foundModules.contains m), insertAll (NameSet.insert foundModules name) directImports, dependencies)
@@ -162,7 +171,7 @@ partial def build (ctx : Context) (h : IO.FS.Handle) : IO UInt32 := do
     h.putStrLn $ buildcexe exe objs ctx.externalDependencies
 
   if ctx.buildStaticLib then
-    let lib := Lean.modToFilePath "out" ctx.pkg "a"
+    let lib := Lean.modToFilePath "out" ("lib" ++ ctx.pkg.toString).toName "a"
     h.putStrLn $ buildar lib objs ctx.externalDependencies
 
   return 0
@@ -186,15 +195,14 @@ partial def buildDependencies (ctx : Context) (h : IO.FS.Handle) : IO NameSet :=
 def help := "bn : build lean
 
 Usage:
-  bn gen    (c | lib | exe | olean) <Pkg> -- generate ninja rules
-  bn build  (c | lib | exe | olean) <Pkg> -- build the corresponding target
-  bn clean                                -- remove the build artifacts
+  bn gen    (c | lib | exe) <Pkg> -- generate ninja rules
+  bn build  (c | lib | exe) <Pkg> -- build the corresponding target
+  bn clean                        -- remove the build artifacts
 
 where
   c   : c files
   lib : a static library
   exe : an executable
-  olean : olean files
 "
 
 def main (args : List String) : IO UInt32 := do
@@ -220,9 +228,6 @@ def main (args : List String) : IO UInt32 := do
   | "gen", "c" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
       build { pkg := pkg, buildC := false, buildExe := false : Context } h
-  | "gen", "olean" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
-      h.putStrLn ruleLean
-      build { pkg := pkg, buildC := false, emitC := false, buildExe := false : Context } h
   | "gen", "lib" => IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
       build { pkg := pkg, buildC := true, buildExe := false, buildStaticLib := true, externalDependencies := externalDependencies : Context } h
@@ -247,14 +252,6 @@ def main (args : List String) : IO UInt32 := do
     let _ ← IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
       h.putStrLn ruleLean
       let ctx := { pkg := pkg, buildC := true, buildExe := false, buildStaticLib := true, externalDependencies := externalDependencies, trackExternalDeps := true : Context }
-      let _ ← buildDependencies ctx h
-      build ctx h
-    let child ← IO.Process.spawn {cmd := "ninja", args := #[]}
-    child.wait
-  | "build", "olean" => do
-    let _ ← IO.FS.withFile "build.ninja" IO.FS.Mode.write $ fun h => do
-      h.putStrLn ruleLean
-      let ctx := { pkg := pkg, emitC := false, buildExe := false,  buildC := false,  externalDependencies := externalDependencies, trackExternalDeps := true : Context }
       let _ ← buildDependencies ctx h
       build ctx h
     let child ← IO.Process.spawn {cmd := "ninja", args := #[]}
